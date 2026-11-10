@@ -1,4 +1,4 @@
-# claude-statusline
+# claudecode-cli-statusline
 
 A one-line status line for [Claude Code](https://code.claude.com/docs/en/statusline) that shows how much of your plan's usage limits is left, in percent and euro, and what the selected model costs.
 
@@ -30,7 +30,7 @@ Clone the repository and point `statusLine` in `~/.claude/settings.json` at the 
 {
   "statusLine": {
     "type": "command",
-    "command": "python3 /path/to/claude-statusline/statusline.py",
+    "command": "python3 /path/to/claudecode-cli-statusline/statusline.py",
     "refreshInterval": 60
   }
 }
