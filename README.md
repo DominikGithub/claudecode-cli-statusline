@@ -2,7 +2,7 @@
 
 A one-line status line for [Claude Code](https://code.claude.com/docs/en/statusline) that shows how much of your plan's usage limits is left, in percent and euro, what the selected model costs, and how full its context window is.
 
-![The status line in Claude Code: 5-hour and 7-day usage bars with euro left and time to reset, then model, effort and price](res/claude-code-cli-statusline.png)
+![The status line in Claude Code: 5-hour and 7-day usage bars with euro left and time to reset, then model, effort, price and context used of the 1M context window](res/claude-code-cli-statusline.png)
 
 ```
 5h ███░░░░░░░ 33% ~€16 left ↻4h34m /limit-reset │ 7d █░░░░░░░░░ 5% ~€186 left ↻3d19h │ Fable 5.2 xhigh €7.13/€35.67 │ ctx 64k/1M
