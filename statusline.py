@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""One-line Claude Code status line: plan usage, reset timers, manual reset, model cost.
+"""One-line Claude Code status line: plan usage, reset timers, manual reset, model cost, context.
 
-  5h ███░░░░░░░ 32% ~€15 left ↻4h34m /limit-reset │ 7d ░░░░░░░░░░ 4% ~€139 left ↻3d19h │ Fable 5.2 xhigh €7.13/€35.67
+  5h ███░░░░░░░ 32% ~€15 left ↻4h34m /limit-reset │ 7d ░░░░░░░░░░ 4% ~€139 left ↻3d19h │ Fable 5.2 xhigh €7.13/€35.67 │ ctx 64k/1M
 
 For the 5-hour and the 7-day limit: a bar and the percentage used, an estimate of
 the euro value still left, and the time until the limit resets. `/limit-reset` is
 shown while a manual reset is available. Then the model, the effort level (with
 Claude Code's relative cost of that effort, where it publishes one) and the list
-price per million input/output tokens. Parts are dropped when the terminal is too
+price per million input/output tokens. Last, the tokens in the context window now
+and the model's context window size. Parts are dropped when the terminal is too
 narrow; the bars go last.
 
 Where the numbers come from
@@ -25,6 +26,9 @@ Where the numbers come from
     how many dollars of list-price usage (`cost.total_cost_usd`) move each limit by
     one percentage point, from the Claude Code sessions on this machine, and scales
     the remaining percentage by that. It appears once enough usage has been seen.
+  * Context: `context_window` in the status line input. `context_window_size` is the
+    model's window (200k, or 1M for the 1M-context variants); the tokens in it are
+    the input, cache-write and cache-read tokens of the last request.
 
 State lives in ~/.claude/statusline/: state.json (learned ratios), fx.json (rate),
 error.log (last failure). `touch ~/.claude/statusline/debug` dumps each input to
@@ -143,6 +147,18 @@ def eur(usd, fx, approx=False):
 
 def pct_text(value):
     return "<1%" if 0 < value < 0.5 else "%d%%" % round(value)
+
+
+def tokens(count):
+    """64419 -> 64k, 200000 -> 200k, 1000000 -> 1M, 1500 -> 1.5k."""
+    count = max(0, int(round(count)))
+    if count < 1000:
+        return "%d" % count
+    if count < 10000:
+        return ("%.1f" % (count / 1e3)).rstrip("0").rstrip(".") + "k"
+    if round(count / 1e3) < 1000:
+        return "%dk" % round(count / 1e3)
+    return ("%.1f" % (count / 1e6)).rstrip("0").rstrip(".") + "M"
 
 
 def duration(seconds):
@@ -401,6 +417,28 @@ def model_segment(data, fx, level):
     return " ".join(parts)
 
 
+def context_segment(data):
+    """Tokens in the context window now / the model's context window size."""
+    ctx = data.get("context_window")
+    if not isinstance(ctx, dict):
+        return None
+    size = num(ctx.get("context_window_size"))
+    if not size or size <= 0:
+        return None
+    usage = ctx.get("current_usage")
+    used = None
+    if isinstance(usage, dict):                              # null before the first response
+        used = sum(num(usage.get(key), 0.0) for key in
+                   ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
+    label = paint("1", "ctx") + " "
+    if used is None:
+        return label + dim(tokens(size))
+    share = num(ctx.get("used_percentage"))
+    if share is None:
+        share = used / size * 100.0
+    return label + paint(severity(share), tokens(used)) + dim("/" + tokens(size))
+
+
 def render(data, state, fx, now, budget):
     views = [(label, window_view(name, data, state, now), usd_per_point(state, name))
              for name, label in WINDOWS]
@@ -411,14 +449,18 @@ def render(data, state, fx, now, budget):
         views.append(("spend", spend, None))
     reset = manual_reset_available(now)
     line = ""
-    # Each level is narrower: 1 no prices, 2 short bars, 3 no model, 4 no euro, 5 no reset hint.
-    for level in range(6):
+    context = context_segment(data)
+    # Each level is narrower: 1 no prices, 2 short bars, 3 no model, 4 no euro,
+    # 5 no context, 6 no reset hint.
+    for level in range(7):
         segs = [window_segment(label, view, ratio, fx, now, level) for label, view, ratio in views]
-        if reset and level < 5:
+        if reset and level < 6:
             segs[0] += " " + paint("1;36", RESET_COMMAND)
         extra = model_segment(data, fx, level)
         if extra:
             segs.append(extra)
+        if context and level < 5:
+            segs.append(context)
         line = dim(" │ ").join(segs)
         if vislen(line) <= budget:
             break
